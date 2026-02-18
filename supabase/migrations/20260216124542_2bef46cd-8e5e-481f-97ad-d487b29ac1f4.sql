@@ -1,0 +1,3 @@
+
+ALTER TABLE public.profiles
+ADD COLUMN theme_preference text NOT NULL DEFAULT 'system';
