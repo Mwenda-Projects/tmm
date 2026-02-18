@@ -6,8 +6,6 @@ const ICE_SERVERS: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -25,7 +23,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null); // Added for UI syncing
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -42,7 +40,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     });
     
     localStreamRef.current = stream;
-    setLocalStream(stream);
+    setLocalStream(stream); // Sync state for the UI
     
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
@@ -123,16 +121,14 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     setCallStatus('ringing');
 
     const stream = await getLocalStream();
-    const channel = supabase.channel(`call-${callSessionId}`, {
-      config: { broadcast: { self: false, ack: true } }
-    });
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
 
     const pc = setupPeerConnection(stream, channel);
 
     channel
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
-        if (payload.from === remoteUserId && pc.signalingState !== 'stable') {
+        if (payload.from === remoteUserId) {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
           setCallStatus('accepted');
         }
@@ -147,18 +143,13 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
       .on('broadcast', { event: 'hangup' }, () => cleanup())
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          // Fix: Wait briefly for the subscription to be "warm" before sending offer
-          setTimeout(async () => {
-            if (pc.signalingState === 'stable') {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              channel.send({
-                type: 'broadcast',
-                event: 'offer',
-                payload: { offer, from: currentUserId },
-              });
-            }
-          }, 500);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          channel.send({
+            type: 'broadcast',
+            event: 'offer',
+            payload: { offer, from: currentUserId },
+          });
         }
       });
   }, [callSessionId, getLocalStream, setupPeerConnection, remoteUserId, currentUserId, cleanup]);
@@ -170,16 +161,14 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     setCallStatus('accepted');
 
     const stream = await getLocalStream();
-    const channel = supabase.channel(`call-${callSessionId}`, {
-      config: { broadcast: { self: false, ack: true } }
-    });
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
 
     const pc = setupPeerConnection(stream, channel);
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload.from === remoteUserId && pc.signalingState !== 'stable') {
+        if (payload.from === remoteUserId) {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -225,7 +214,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     callStatus,
     isMuted,
     isCameraOff,
-    localStream, 
+    localStream, // Make sure to return this!
     remoteStream,
     localVideoRef,
     remoteVideoRef,
