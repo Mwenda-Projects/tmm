@@ -6,8 +6,6 @@ const ICE_SERVERS: RTCConfiguration = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -34,7 +32,6 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
   const channelRef = useRef<any>(null);
 
   const cleanup = useCallback(() => {
-    console.log("Cleaning up WebRTC session...");
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     setLocalStream(null);
@@ -59,64 +56,53 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       return stream;
     } catch (err) {
-      console.error("Failed to get local stream:", err);
+      console.error("Camera error:", err);
       return null;
     }
   }, []);
 
-  const setupPeerConnection = useCallback(
-    (stream: MediaStream, channel: any) => {
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-      pcRef.current = pc;
+  const setupPeerConnection = useCallback((stream: MediaStream, channel: any) => {
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    pcRef.current = pc;
 
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice-candidate',
-            payload: { candidate: e.candidate.toJSON(), from: currentUserId },
-          });
-        }
-      };
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        channel.send({
+          type: 'broadcast',
+          event: 'ice-candidate',
+          payload: { candidate: e.candidate.toJSON(), from: currentUserId },
+        });
+      }
+    };
 
-      pc.ontrack = (e) => {
-        console.log("Remote track received!");
-        const remote = e.streams[0];
-        setRemoteStream(remote);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remote;
-        }
-      };
+    pc.ontrack = (e) => {
+      if (e.streams[0]) {
+        setRemoteStream(e.streams[0]);
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
+      }
+    };
 
-      return pc;
-    },
-    [currentUserId]
-  );
+    return pc;
+  }, [currentUserId]);
 
   const startCall = useCallback(async () => {
     if (!callSessionId) return;
     setCallStatus('ringing');
-
     const stream = await getLocalStream();
     if (!stream) return;
 
-    const channel = supabase.channel(`call-${callSessionId}`, {
-      config: { broadcast: { self: false, ack: true } }
-    });
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
-
     const pc = setupPeerConnection(stream, channel);
 
     channel
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
-        if (payload.from === remoteUserId && pc.signalingState !== 'stable') {
+        if (payload.from === remoteUserId) {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
           setCallStatus('accepted');
         }
@@ -129,17 +115,11 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
       .on('broadcast', { event: 'hangup' }, () => cleanup())
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          // 1 second delay to ensure the receiver is listening
+          // WAIT for 1 second to make sure receiver is ready
           setTimeout(async () => {
-            if (pc.signalingState === 'stable') {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              channel.send({
-                type: 'broadcast',
-                event: 'offer',
-                payload: { offer, from: currentUserId },
-              });
-            }
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            channel.send({ type: 'broadcast', event: 'offer', payload: { offer, from: currentUserId } });
           }, 1000);
         }
       });
@@ -147,31 +127,24 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
 
   const answerCall = useCallback(async () => {
     if (!callSessionId) return;
-
     const stream = await getLocalStream();
     if (!stream) return;
 
+    // This UPDATE works now because of your SQL fix
     await supabase.from('call_sessions').update({ status: 'accepted' } as any).eq('id', callSessionId);
     setCallStatus('accepted');
 
-    const channel = supabase.channel(`call-${callSessionId}`, {
-      config: { broadcast: { self: false, ack: true } }
-    });
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
-
     const pc = setupPeerConnection(stream, channel);
 
     channel
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload.from === remoteUserId && pc.signalingState !== 'stable') {
+        if (payload.from === remoteUserId) {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          channel.send({
-            type: 'broadcast',
-            event: 'answer',
-            payload: { answer, from: currentUserId },
-          });
+          channel.send({ type: 'broadcast', event: 'answer', payload: { answer, from: currentUserId } });
         }
       })
       .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
@@ -183,21 +156,15 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
       .subscribe();
   }, [callSessionId, getLocalStream, setupPeerConnection, remoteUserId, currentUserId, cleanup]);
 
-  const toggleMute = useCallback(() => {
-    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
-    }
-  }, []);
+  const toggleMute = () => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
+  };
 
-  const toggleCamera = useCallback(() => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsCameraOff(!videoTrack.enabled);
-    }
-  }, []);
+  const toggleCamera = () => {
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsCameraOff(!track.enabled); }
+  };
 
   const endCall = useCallback(async () => {
     if (callSessionId) {
@@ -207,23 +174,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     cleanup();
   }, [callSessionId, currentUserId, cleanup]);
 
-  useEffect(() => {
-    return () => cleanup();
-  }, [cleanup]);
+  useEffect(() => { return () => cleanup(); }, [cleanup]);
 
-  return {
-    callStatus,
-    isMuted,
-    isCameraOff,
-    localStream, 
-    remoteStream,
-    localVideoRef,
-    remoteVideoRef,
-    startCall,
-    answerCall,
-    endCall,
-    toggleMute,
-    toggleCamera,
-    requestMedia: getLocalStream,
-  };
+  return { callStatus, isMuted, isCameraOff, localStream, remoteStream, localVideoRef, remoteVideoRef, startCall, answerCall, endCall, toggleMute, toggleCamera, requestMedia: getLocalStream };
 }
