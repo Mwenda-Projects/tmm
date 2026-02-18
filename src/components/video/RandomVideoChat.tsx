@@ -5,8 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { VideoCall } from '@/components/video/VideoCall';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Video, Loader2, ShieldAlert, Shuffle, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 type MatchState = 'idle' | 'searching' | 'matched' | 'in-call';
 
@@ -27,7 +27,6 @@ export function RandomVideoChat() {
     if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
   }, []);
 
-  // Remove from queue on unmount
   useEffect(() => {
     return () => {
       cleanup();
@@ -41,86 +40,101 @@ export function RandomVideoChat() {
     if (!user) return;
     setState('searching');
 
-    // Join queue
-    await supabase.from('random_match_queue').upsert({ user_id: user.id } as any, { onConflict: 'user_id' });
+    try {
+      const { error: queueError } = await supabase
+        .from('random_match_queue')
+        .upsert({ user_id: user.id } as any, { onConflict: 'user_id' });
 
-    // Listen for being matched (other user calls us via broadcast)
-    const channel = supabase.channel(`random-match-${user.id}`);
-    channelRef.current = channel;
+      if (queueError) throw new Error("Could not join match queue.");
 
-    channel
-      .on('broadcast', { event: 'matched' }, async ({ payload }) => {
-        cleanup();
-        setMatchedUserId(payload.matchedUserId);
-        setMatchedName(payload.matchedName || 'Peer');
-        setMatchedInstitution(payload.matchedInstitution);
-        setCallSessionId(payload.callSessionId);
-        setIsCaller(false);
-        setState('in-call');
-      })
-      .subscribe();
+      const channel = supabase.channel(`random-match-${user.id}`);
+      channelRef.current = channel;
 
-    // Poll for a match every 3 seconds
-    const poll = setInterval(async () => {
-      const { data: matchId } = await supabase.rpc('find_random_match', { _user_id: user.id });
+      channel
+        .on('broadcast', { event: 'matched' }, async ({ payload }) => {
+          cleanup();
+          setMatchedUserId(payload.matchedUserId);
+          setMatchedName(payload.matchedName || 'Peer');
+          setMatchedInstitution(payload.matchedInstitution);
+          setCallSessionId(payload.callSessionId);
+          setIsCaller(false);
+          setState('in-call');
+        })
+        .subscribe();
 
-      if (matchId) {
-        clearInterval(poll);
-        pollRef.current = null;
+      const poll = setInterval(async () => {
+        const { data: matchId, error: rpcError } = await supabase.rpc('find_random_match', { _user_id: user.id });
 
-        // Get matched user profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, institution_name')
-          .eq('user_id', matchId)
-          .maybeSingle();
+        if (rpcError) {
+          console.error("RPC Error:", rpcError);
+          return;
+        }
 
-        // Create call session
-        const { data: session } = await supabase
-          .from('call_sessions')
-          .insert({ caller_id: user.id, receiver_id: matchId, status: 'accepted' } as any)
-          .select('id')
-          .single();
+        if (matchId) {
+          clearInterval(poll);
+          pollRef.current = null;
 
-        if (!session) { setState('idle'); return; }
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, institution_name')
+            .eq('user_id', matchId)
+            .maybeSingle();
 
-        // Notify the matched user via their broadcast channel
-        const matchChannel = supabase.channel(`random-match-${matchId}`);
-        
-        // Get our own profile for the other user
-        const { data: myProfile } = await supabase
-          .from('profiles')
-          .select('full_name, institution_name')
-          .eq('user_id', user.id)
-          .maybeSingle();
+          const { data: session, error: sessionError } = await supabase
+            .from('call_sessions')
+            .insert({ 
+              caller_id: user.id, 
+              receiver_id: matchId, 
+              status: 'accepted' 
+            } as any)
+            .select('id')
+            .single();
 
-        matchChannel.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            await matchChannel.send({
-              type: 'broadcast',
-              event: 'matched',
-              payload: {
-                matchedUserId: user.id,
-                matchedName: myProfile?.full_name || 'Peer',
-                matchedInstitution: myProfile?.institution_name,
-                callSessionId: session.id,
-              },
-            });
-            // Clean up notification channel after a short delay
-            setTimeout(() => supabase.removeChannel(matchChannel), 2000);
+          if (sessionError || !session) {
+            console.error("Session creation error:", sessionError);
+            toast.error("Failed to establish a secure call session.");
+            setState('idle');
+            return;
           }
-        });
 
-        setMatchedUserId(matchId);
-        setMatchedName(profile?.full_name || 'Peer');
-        setMatchedInstitution(profile?.institution_name || undefined);
-        setCallSessionId(session.id);
-        setIsCaller(true);
-        setState('in-call');
-      }
-    }, 3000);
+          const { data: myProfile } = await supabase
+            .from('profiles')
+            .select('full_name, institution_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-    pollRef.current = poll;
+          const matchChannel = supabase.channel(`random-match-${matchId}`);
+          
+          matchChannel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await matchChannel.send({
+                type: 'broadcast',
+                event: 'matched',
+                payload: {
+                  matchedUserId: user.id,
+                  matchedName: myProfile?.full_name || 'Peer',
+                  matchedInstitution: myProfile?.institution_name,
+                  callSessionId: session.id,
+                },
+              });
+              setTimeout(() => supabase.removeChannel(matchChannel), 2000);
+            }
+          });
+
+          setMatchedUserId(matchId);
+          setMatchedName(profile?.full_name || 'Peer');
+          setMatchedInstitution(profile?.institution_name || undefined);
+          setCallSessionId(session.id);
+          setIsCaller(true);
+          setState('in-call');
+        }
+      }, 3000);
+
+      pollRef.current = poll;
+    } catch (error: any) {
+      toast.error(error.message);
+      setState('idle');
+    }
   }, [user, cleanup]);
 
   const cancelSearch = useCallback(async () => {
@@ -137,7 +151,6 @@ export function RandomVideoChat() {
     setState('idle');
   }, []);
 
-  // Active video call overlay
   if (state === 'in-call' && user && matchedUserId && callSessionId) {
     return (
       <VideoCall
@@ -153,35 +166,38 @@ export function RandomVideoChat() {
   }
 
   return (
-    <Card className="border-border overflow-hidden">
+    <Card className="border-border overflow-hidden bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
           <Shuffle className="h-4 w-4 text-primary" /> Random Video Chat
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground leading-relaxed">
           Get matched with a random student for a peer-to-peer video conversation. Great for meeting new people across universities!
         </p>
 
         {isGuest ? (
-          <div className="flex items-center gap-2 text-xs text-destructive">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-xs text-destructive">
             <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>Register with a university email to use video chat.</span>
+            <span>Please sign in with a university email to access video chat.</span>
           </div>
         ) : state === 'searching' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-2 py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Looking for a match…</span>
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center gap-3 py-6 rounded-lg bg-muted/30 border border-dashed border-border">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="text-sm font-medium">Looking for a peer...</p>
+                <p className="text-xs text-muted-foreground">This usually takes less than a minute</p>
+              </div>
             </div>
-            <Button variant="outline" onClick={cancelSearch} className="w-full" size="sm">
-              <X className="h-4 w-4 mr-1" /> Cancel
+            <Button variant="ghost" onClick={cancelSearch} className="w-full text-muted-foreground hover:text-destructive" size="sm">
+              <X className="h-4 w-4 mr-2" /> Stop Searching
             </Button>
           </div>
         ) : (
-          <Button onClick={startSearching} className="w-full" size="sm">
-            <Video className="h-4 w-4 mr-1" /> Find a Random Peer
+          <Button onClick={startSearching} className="w-full shadow-lg hover:shadow-primary/20 transition-all" size="lg">
+            <Video className="h-4 w-4 mr-2" /> Find a Random Peer
           </Button>
         )}
       </CardContent>
