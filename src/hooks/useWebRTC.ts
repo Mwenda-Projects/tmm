@@ -5,6 +5,7 @@ const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
   ],
 };
 
@@ -22,6 +23,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null); // Added for UI syncing
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -30,31 +32,30 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const getLocalStream = useCallback(async () => {
-    // If media was already acquired via requestMedia, reuse it
-    if (localStreamRef.current) {
-      return localStreamRef.current;
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    if (localStreamRef.current) return localStreamRef.current;
+    
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+      audio: true 
+    });
+    
     localStreamRef.current = stream;
+    setLocalStream(stream); // Sync state for the UI
+    
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
     }
     return stream;
   }, []);
 
-  // Called directly from a user click handler to satisfy browser gesture requirement
   const requestMedia = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localStreamRef.current = stream;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
-    return stream;
-  }, []);
+    return await getLocalStream();
+  }, [getLocalStream]);
 
   const cleanup = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
+    setLocalStream(null);
     pcRef.current?.close();
     pcRef.current = null;
     if (channelRef.current) {
@@ -71,9 +72,13 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
         .from('call_sessions')
         .update({ status: 'ended' } as any)
         .eq('id', callSessionId);
+      
+      if (channelRef.current) {
+        channelRef.current.send({ type: 'broadcast', event: 'hangup', payload: { from: currentUserId } });
+      }
     }
     cleanup();
-  }, [callSessionId, cleanup]);
+  }, [callSessionId, cleanup, currentUserId]);
 
   const setupPeerConnection = useCallback(
     (stream: MediaStream, channel: ReturnType<typeof supabase.channel>) => {
@@ -102,13 +107,13 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
 
       pc.oniceconnectionstatechange = () => {
         if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          endCall();
+          cleanup();
         }
       };
 
       return pc;
     },
-    [currentUserId, endCall]
+    [currentUserId, cleanup]
   );
 
   const startCall = useCallback(async () => {
@@ -116,8 +121,7 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     setCallStatus('ringing');
 
     const stream = await getLocalStream();
-    const channelName = `call-${callSessionId}`;
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
 
     const pc = setupPeerConnection(stream, channel);
@@ -133,14 +137,10 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
         if (payload.from === remoteUserId && payload.candidate) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          } catch (e) {
-            console.warn('ICE candidate error', e);
-          }
+          } catch (e) { console.warn('ICE candidate error', e); }
         }
       })
-      .on('broadcast', { event: 'hangup' }, () => {
-        cleanup();
-      })
+      .on('broadcast', { event: 'hangup' }, () => cleanup())
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           const offer = await pc.createOffer();
@@ -157,15 +157,11 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
   const answerCall = useCallback(async () => {
     if (!callSessionId) return;
 
-    await supabase
-      .from('call_sessions')
-      .update({ status: 'accepted' } as any)
-      .eq('id', callSessionId);
-
+    await supabase.from('call_sessions').update({ status: 'accepted' } as any).eq('id', callSessionId);
     setCallStatus('accepted');
+
     const stream = await getLocalStream();
-    const channelName = `call-${callSessionId}`;
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel(`call-${callSessionId}`);
     channelRef.current = channel;
 
     const pc = setupPeerConnection(stream, channel);
@@ -187,14 +183,10 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
         if (payload.from === remoteUserId && payload.candidate) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          } catch (e) {
-            console.warn('ICE candidate error', e);
-          }
+          } catch (e) { console.warn('ICE candidate error', e); }
         }
       })
-      .on('broadcast', { event: 'hangup' }, () => {
-        cleanup();
-      })
+      .on('broadcast', { event: 'hangup' }, () => cleanup())
       .subscribe();
   }, [callSessionId, getLocalStream, setupPeerConnection, remoteUserId, currentUserId, cleanup]);
 
@@ -214,20 +206,15 @@ export function useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (channelRef.current) {
-        channelRef.current.send({ type: 'broadcast', event: 'hangup', payload: { from: currentUserId } });
-      }
-      cleanup();
-    };
-  }, [cleanup, currentUserId]);
+    return () => cleanup();
+  }, [cleanup]);
 
   return {
     callStatus,
     isMuted,
     isCameraOff,
+    localStream, // Make sure to return this!
     remoteStream,
     localVideoRef,
     remoteVideoRef,

@@ -1,6 +1,6 @@
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, VideoIcon } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, VideoIcon, Loader2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
 interface VideoCallProps {
@@ -37,9 +37,18 @@ export function VideoCall({
     toggleMute,
     toggleCamera,
     requestMedia,
+    localStream, // Extracted from your updated hook
   } = useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller });
 
-  // CRITICAL: Request media from a direct user click, not useEffect
+  // FORCE ATTACH STREAM: This fixes the black screen for your self-view
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+      // Ensure the video plays immediately
+      localVideoRef.current.play().catch(console.error);
+    }
+  }, [localStream, localVideoRef]);
+
   const handleConnect = useCallback(async () => {
     try {
       setMediaError(null);
@@ -113,24 +122,38 @@ export function VideoCall({
         {remoteInstitution && (
           <p className="text-sm text-muted-foreground">{remoteInstitution}</p>
         )}
-        <p className="text-xs text-muted-foreground mt-1 capitalize">{callStatus}</p>
+        <div className="flex items-center justify-center gap-2 mt-1">
+          {callStatus !== 'accepted' && <Loader2 className="h-3 w-3 animate-spin" />}
+          <p className="text-xs text-muted-foreground capitalize">
+            {callStatus === 'accepted' ? 'Connected' : 'Establishing connection...'}
+          </p>
+        </div>
       </div>
 
       {/* Video streams */}
-      <div className="relative w-full max-w-3xl aspect-video bg-muted rounded-lg overflow-hidden">
+      <div className="relative w-full max-w-3xl aspect-video bg-muted rounded-lg overflow-hidden border border-border shadow-2xl">
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
           className="w-full h-full object-cover"
         />
+        
+        {/* Your self-view */}
         <video
           ref={localVideoRef}
           autoPlay
           playsInline
           muted
-          className="absolute bottom-3 right-3 w-36 h-28 rounded-lg object-cover border-2 border-border bg-muted"
+          controls={false}
+          className="absolute bottom-3 right-3 w-36 h-28 rounded-lg object-cover border-2 border-primary/50 bg-black shadow-lg"
         />
+        
+        {callStatus !== 'accepted' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+             <p className="text-white text-sm font-medium">Waiting for peer...</p>
+          </div>
+        )}
       </div>
 
       {/* Controls */}
@@ -155,7 +178,7 @@ export function VideoCall({
           variant="destructive"
           size="icon"
           onClick={handleEndCall}
-          className="rounded-full h-14 w-14"
+          className="rounded-full h-14 w-14 shadow-lg"
         >
           <PhoneOff className="h-6 w-6" />
         </Button>
