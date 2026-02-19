@@ -7,9 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
@@ -21,70 +19,26 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
-// ─── Kenyan Universities Marquee ──────────────────────────────────────────────
+// ─── Glass Card ───────────────────────────────────────────────────────────────
 
-const KENYAN_UNIVERSITIES = [
-  { name: 'University of Nairobi', domain: 'uonbi.ac.ke', short: 'UoN' },
-  { name: 'Kenyatta University', domain: 'ku.ac.ke', short: 'KU' },
-  { name: 'Strathmore University', domain: 'strathmore.edu', short: 'SU' },
-  { name: 'JKUAT', domain: 'jkuat.ac.ke', short: 'JKUAT' },
-  { name: 'Moi University', domain: 'mu.ac.ke', short: 'MU' },
-  { name: 'Technical Univ. Kenya', domain: 'tukenya.ac.ke', short: 'TUK' },
-  { name: 'Egerton University', domain: 'egerton.ac.ke', short: 'EU' },
-  { name: 'Maseno University', domain: 'maseno.ac.ke', short: 'MSU' },
-  { name: 'Kisii University', domain: 'kisii.ac.ke', short: 'KSU' },
-  { name: 'Dedan Kimathi Univ.', domain: 'dkut.ac.ke', short: 'DeKUT' },
-  { name: 'Multimedia University', domain: 'mmu.ac.ke', short: 'MMU' },
-  { name: 'Daystar University', domain: 'daystar.ac.ke', short: 'DU' },
-  { name: 'USIU Africa', domain: 'usiu.ac.ke', short: 'USIU' },
-  { name: 'Mt. Kenya University', domain: 'mku.ac.ke', short: 'MKU' },
-  { name: 'Catholic Univ. E.Africa', domain: 'cuea.edu', short: 'CUEA' },
-  { name: 'Pwani University', domain: 'pu.ac.ke', short: 'PU' },
-  { name: 'Laikipia University', domain: 'laikipia.ac.ke', short: 'LU' },
-  { name: 'Chuka University', domain: 'chuka.ac.ke', short: 'CU' },
-  { name: 'South Eastern Kenya Univ.', domain: 'seku.ac.ke', short: 'SEKU' },
-  { name: 'Kirinyaga University', domain: 'kyu.ac.ke', short: 'KYU' },
-];
-
-function UniversityLogoItem({ uni }: { uni: typeof KENYAN_UNIVERSITIES[0] }) {
-  const [imgFailed, setImgFailed] = useState(false);
+function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 py-3 px-2 group">
-      <div className="h-12 w-12 rounded-xl bg-muted/40 border border-border flex items-center justify-center overflow-hidden group-hover:border-primary/30 group-hover:bg-primary/5 transition-all duration-300">
-        {!imgFailed ? (
-          <img src={`https://www.google.com/s2/favicons?domain=${uni.domain}&sz=64`} alt={uni.name}
-            className="h-8 w-8 object-contain" onError={() => setImgFailed(true)} />
-        ) : (
-          <span className="text-[10px] font-bold text-muted-foreground text-center leading-tight px-1">{uni.short}</span>
-        )}
-      </div>
-      <span className="text-[9px] text-muted-foreground/60 text-center leading-tight max-w-[72px] truncate">{uni.short}</span>
+    <div className={cn(
+      'relative rounded-[20px] border overflow-hidden',
+      'bg-white/70 dark:bg-white/[0.04]',
+      'border-white/60 dark:border-white/[0.08]',
+      'shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_32px_rgba(0,0,0,0.4)]',
+      'backdrop-blur-xl',
+      className,
+    )}>
+      {children}
     </div>
   );
 }
 
-function VerticalMarquee({ direction = 'down' }: { direction?: 'up' | 'down' }) {
-  const doubled = [...KENYAN_UNIVERSITIES, ...KENYAN_UNIVERSITIES];
-  return (
-    <div className="relative h-full overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-16 z-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, var(--background), transparent)' }} />
-      <div className="absolute bottom-0 left-0 right-0 h-16 z-10 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, var(--background), transparent)' }} />
-      <div className="flex flex-col"
-        style={{ animation: `marquee-${direction} ${direction === 'down' ? '35s' : '40s'} linear infinite` }}>
-        {doubled.map((uni, i) => <UniversityLogoItem key={`${uni.domain}-${i}`} uni={uni} />)}
-      </div>
-      <style>{`
-        @keyframes marquee-down { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
-        @keyframes marquee-up { 0% { transform: translateY(-50%); } 100% { transform: translateY(0); } }
-      `}</style>
-    </div>
-  );
-}
-
-// ─── Logo Detection + Caching ─────────────────────────────────────────────────
+// ─── Logo Detection ───────────────────────────────────────────────────────────
 
 async function getUniversityDomain(name: string): Promise<string | null> {
   try {
@@ -131,7 +85,7 @@ async function fetchInstitutionLogoUrl(name: string): Promise<string | null> {
   return logoUrl;
 }
 
-// ─── InstitutionLogo ──────────────────────────────────────────────────────────
+// ─── Institution Logo ─────────────────────────────────────────────────────────
 
 function InstitutionLogo({ institutionName, manualLogoUrl, fallbackInitials, className = 'h-16 w-16' }: {
   institutionName: string; manualLogoUrl?: string; fallbackInitials: string; className?: string;
@@ -151,13 +105,13 @@ function InstitutionLogo({ institutionName, manualLogoUrl, fallbackInitials, cla
 
   useEffect(() => { resolve(); }, [resolve]);
 
-  if (fetching) return <div className={`${className} rounded-full bg-muted animate-pulse border-2 border-border shrink-0`} />;
+  if (fetching) return <div className={`${className} rounded-full bg-white/10 animate-pulse shrink-0`} />;
   if (!logoUrl || imgFailed) return (
-    <Avatar className={`${className} border-2 border-border shrink-0`}>
-      <AvatarFallback className="text-lg font-bold bg-primary/10 text-primary">{fallbackInitials}</AvatarFallback>
+    <Avatar className={`${className} shrink-0`}>
+      <AvatarFallback className="bg-primary/10 text-primary font-bold">{fallbackInitials}</AvatarFallback>
     </Avatar>
   );
-  return <img src={logoUrl} alt={institutionName} className={`${className} rounded-full object-contain bg-white border-2 border-border shrink-0`} onError={() => setImgFailed(true)} />;
+  return <img src={logoUrl} alt={institutionName} className={`${className} rounded-full object-contain bg-white shrink-0`} onError={() => setImgFailed(true)} />;
 }
 
 // ─── Guest Countdown ──────────────────────────────────────────────────────────
@@ -174,19 +128,17 @@ function GuestCountdown({ expiresAt }: { expiresAt: Date }) {
     tick(); const id = setInterval(tick, 1_000); return () => clearInterval(id);
   }, [expiresAt]);
   return (
-    <Card className="border-destructive/40 bg-destructive/5">
-      <CardContent className="flex items-center gap-3 py-4">
-        <ShieldAlert className="h-5 w-5 text-destructive shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-destructive">Gate Crusher — Guest Session</p>
-          <p className="text-xs text-muted-foreground">Read-only access. Register with a university email to unlock all features.</p>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Clock className="h-4 w-4 text-destructive" />
-          <span className="font-mono text-sm font-bold text-destructive">{remaining}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <GlassCard className="flex items-center gap-3 p-4 border-rose-500/20 dark:border-rose-500/20">
+      <ShieldAlert className="h-5 w-5 text-rose-500 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-rose-500">Gate Crusher — Guest Session</p>
+        <p className="text-xs text-muted-foreground">Read-only access. Register with a university email to unlock all features.</p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Clock className="h-4 w-4 text-rose-500" />
+        <span className="font-mono text-sm font-bold text-rose-500">{remaining}</span>
+      </div>
+    </GlassCard>
   );
 }
 
@@ -200,29 +152,26 @@ function ProfileCompletion({ fullName, institutionName, majorName }: {
     { label: 'Institution set', done: !!institutionName.trim() },
     { label: 'Major selected', done: !!majorName },
   ];
-  const completed = checks.filter(c => c.done).length;
-  const pct = Math.round((completed / checks.length) * 100);
+  const pct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
 
   return (
-    <Card className="border-border">
-      <CardContent className="pt-5 pb-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-foreground">Profile Completion</p>
-          <span className={`text-sm font-bold ${pct === 100 ? 'text-green-500' : 'text-primary'}`}>{pct}%</span>
-        </div>
-        <Progress value={pct} className="h-2" />
-        <div className="flex gap-4 flex-wrap pt-1">
-          {checks.map(c => (
-            <div key={c.label} className="flex items-center gap-1.5">
-              {c.done
-                ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
-              <span className={`text-[11px] ${c.done ? 'text-foreground' : 'text-muted-foreground'}`}>{c.label}</span>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <GlassCard className="p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-semibold text-foreground">Profile Completion</p>
+        <span className={`text-[13px] font-bold ${pct === 100 ? 'text-emerald-500' : 'text-primary'}`}>{pct}%</span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+      <div className="flex gap-4 flex-wrap pt-0.5">
+        {checks.map(c => (
+          <div key={c.label} className="flex items-center gap-1.5">
+            {c.done
+              ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              : <Circle className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
+            <span className={`text-[12px] ${c.done ? 'text-foreground' : 'text-muted-foreground'}`}>{c.label}</span>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
   );
 }
 
@@ -230,24 +179,31 @@ function ProfileCompletion({ fullName, institutionName, majorName }: {
 
 function ThemeCard({ value, label, icon: Icon, current, onClick, preview }: {
   value: string; label: string; icon: typeof Sun; current: string; onClick: () => void;
-  preview: { bg: string; card: string; accent: string };
+  preview: { bg: string; bar: string; line: string };
 }) {
   const active = current === value;
   return (
     <button onClick={onClick}
-      className={`relative flex-1 rounded-xl border-2 p-3 text-left transition-all ${active ? 'border-primary shadow-sm shadow-primary/20' : 'border-border hover:border-primary/40'}`}>
-      <div className={`rounded-lg p-2 mb-3 ${preview.bg}`}>
-        <div className={`h-2 w-12 rounded-full mb-1.5 ${preview.accent}`} />
-        <div className={`h-1.5 w-8 rounded-full ${preview.card}`} />
-        <div className={`h-1.5 w-10 rounded-full mt-1 ${preview.card}`} />
+      className={cn(
+        'relative flex-1 rounded-2xl p-3 text-left transition-all duration-200',
+        'backdrop-blur-xl',
+        active
+          ? 'bg-white/90 dark:bg-white/[0.10] shadow-[0_0_0_1.5px_hsl(var(--primary))] shadow-sm'
+          : 'bg-white/40 dark:bg-white/[0.04] border border-white/50 dark:border-white/[0.06] hover:bg-white/60 dark:hover:bg-white/[0.07]',
+      )}>
+      {/* Mini preview */}
+      <div className={`rounded-xl p-2 mb-3 ${preview.bg}`}>
+        <div className={`h-2 w-10 rounded-full mb-1.5 ${preview.bar}`} />
+        <div className={`h-1.5 w-7 rounded-full ${preview.line}`} />
+        <div className={`h-1.5 w-9 rounded-full mt-1 ${preview.line}`} />
       </div>
       <div className="flex items-center gap-1.5">
-        <Icon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
-        <span className={`text-xs font-medium ${active ? 'text-primary' : 'text-foreground'}`}>{label}</span>
+        <Icon style={{ width: 13, height: 13 }} className={active ? 'text-primary' : 'text-muted-foreground'} />
+        <span className={`text-[12px] font-semibold ${active ? 'text-primary' : 'text-foreground'}`}>{label}</span>
       </div>
       {active && (
         <div className="absolute top-2 right-2 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-          <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+          <CheckCircle2 style={{ width: 10, height: 10 }} className="text-primary-foreground" />
         </div>
       )}
     </button>
@@ -258,7 +214,7 @@ function ThemeCard({ value, label, icon: Icon, current, onClick, preview }: {
 
 type Tab = 'profile' | 'appearance' | 'account';
 
-// ─── Main Settings Page ───────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -320,270 +276,282 @@ export default function SettingsPage() {
       institution_logo_url: institutionLogoUrl.trim() || null,
     }).eq('user_id', user.id);
     if (error) toast({ title: 'Error', description: 'Failed to save.', variant: 'destructive' });
-    else { toast({ title: 'Profile updated!' }); setPreviewInstitution(institutionName); }
+    else { toast({ title: 'Profile updated.' }); setPreviewInstitution(institutionName); }
     setSaving(false);
   };
 
   const handleLogout = async () => { await signOut(); navigate('/auth'); };
 
   if (!user || loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <p className="text-muted-foreground">Loading…</p>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
     </div>
   );
 
   const initials = (fullName || user.email || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   const isVerified = !isGuest;
-
   const tabs: { id: Tab; label: string; icon: typeof User }[] = [
-    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'profile',    label: 'Profile',    icon: User },
     { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'account', label: 'Account', icon: Settings },
+    { id: 'account',    label: 'Account',    icon: Settings },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-[88px_1fr_88px] gap-2 items-start">
+    <div className="min-h-screen relative overflow-hidden">
 
-        {/* ── Left Marquee ── */}
-        <div className="hidden lg:block sticky top-8" style={{ height: 'calc(100vh - 4rem)' }}>
-          <VerticalMarquee direction="down" />
-        </div>
+      {/* ── GRADIENT MESH BACKGROUND (matches dashboard) ── */}
+      <div className="fixed inset-0 dark:hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[#f0f2f5]" />
+        <div className="absolute top-[-200px] left-[-100px] w-[600px] h-[600px] rounded-full blur-[120px] opacity-60"
+          style={{ background: 'radial-gradient(circle, #dbeafe, transparent)' }} />
+        <div className="absolute top-[100px] right-[-100px] w-[500px] h-[500px] rounded-full blur-[120px] opacity-50"
+          style={{ background: 'radial-gradient(circle, #ede9fe, transparent)' }} />
+        <div className="absolute bottom-[-100px] left-[30%] w-[500px] h-[400px] rounded-full blur-[120px] opacity-40"
+          style={{ background: 'radial-gradient(circle, #dcfce7, transparent)' }} />
+      </div>
+      <div className="fixed inset-0 hidden dark:block pointer-events-none">
+        <div className="absolute inset-0 bg-[#0d0d0f]" />
+        <div className="absolute top-[-200px] left-[-100px] w-[700px] h-[700px] rounded-full blur-[160px] opacity-30"
+          style={{ background: 'radial-gradient(circle, #312e81, transparent)' }} />
+        <div className="absolute top-[200px] right-[-100px] w-[500px] h-[500px] rounded-full blur-[140px] opacity-20"
+          style={{ background: 'radial-gradient(circle, #134e4a, transparent)' }} />
+        <div className="absolute bottom-[-50px] left-[40%] w-[600px] h-[400px] rounded-full blur-[140px] opacity-25"
+          style={{ background: 'radial-gradient(circle, #1e1b4b, transparent)' }} />
+      </div>
 
-        {/* ── Main Content ── */}
-        <main className="px-2 max-w-2xl mx-auto w-full space-y-4">
+      {/* ── CONTENT ── */}
+      <div className="relative z-10 max-w-2xl mx-auto px-6 pt-10 pb-16 space-y-4">
 
-          <h1 className="text-2xl font-bold text-foreground">Profile & Settings</h1>
+        <h1 className="text-[32px] font-semibold text-foreground tracking-tight">Profile & Settings</h1>
 
-          {isGuest && expiresAt && <GuestCountdown expiresAt={expiresAt} />}
+        {isGuest && expiresAt && <GuestCountdown expiresAt={expiresAt} />}
 
-          {/* ── Profile Card ── */}
-          <Card className="border-border">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-4">
-                <InstitutionLogo
-                  institutionName={previewInstitution}
-                  manualLogoUrl={institutionLogoUrl || undefined}
-                  fallbackInitials={initials}
-                  className="h-16 w-16"
-                />
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-semibold text-foreground truncate">{fullName || 'Anonymous'}</h2>
-                    {isVerified
-                      ? <Badge variant="default" className="gap-1 text-[10px]"><ShieldCheck className="h-3 w-3" />Verified</Badge>
-                      : <Badge variant="destructive" className="gap-1 text-[10px]"><ShieldAlert className="h-3 w-3" />Guest</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-                  {institutionName && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Building2 className="h-3.5 w-3.5" /> {institutionName}
-                    </p>
-                  )}
-                  {majorName && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <GraduationCap className="h-3.5 w-3.5" /> {majorName}
-                    </p>
-                  )}
-                </div>
-
-                {/* Account stats */}
-                <div className="hidden sm:flex items-center gap-4 shrink-0 self-center">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-foreground">{postCount}</p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 justify-center"><FileText className="h-3 w-3" />Posts</p>
-                  </div>
-                  <div className="h-8 w-px bg-border" />
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-foreground">{groupCount}</p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 justify-center"><Users className="h-3 w-3" />Groups</p>
-                  </div>
-                  <div className="h-8 w-px bg-border" />
-                  <div className="text-center">
-                    <p className="text-[11px] font-semibold text-foreground">
-                      {memberSince ? formatDistanceToNow(new Date(memberSince), { addSuffix: false }) : '—'}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 justify-center"><Calendar className="h-3 w-3" />Member</p>
-                  </div>
-                </div>
+        {/* ── Profile Card ── */}
+        <GlassCard className="p-5">
+          <div className="flex items-start gap-4">
+            <InstitutionLogo
+              institutionName={previewInstitution}
+              manualLogoUrl={institutionLogoUrl || undefined}
+              fallbackInitials={initials}
+              className="h-16 w-16"
+            />
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-[17px] font-semibold text-foreground truncate">{fullName || 'Anonymous'}</h2>
+                {isVerified
+                  ? <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      <ShieldCheck style={{ width: 11, height: 11 }} /> Verified
+                    </span>
+                  : <span className="flex items-center gap-1 text-[11px] font-medium text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full">
+                      <ShieldAlert style={{ width: 11, height: 11 }} /> Guest
+                    </span>
+                }
               </div>
-
-              {/* University badge */}
-              {previewInstitution && (
-                <div className="mt-4 flex items-center gap-2.5 bg-muted/40 border border-border rounded-xl px-3 py-2 w-fit">
-                  <InstitutionLogo
-                    institutionName={previewInstitution}
-                    manualLogoUrl={institutionLogoUrl || undefined}
-                    fallbackInitials={initials}
-                    className="h-7 w-7"
-                  />
-                  <div>
-                    <p className="text-xs font-semibold text-foreground leading-tight">{previewInstitution}</p>
-                    <p className="text-[10px] text-muted-foreground">Verified Institution</p>
-                  </div>
-                </div>
+              <p className="text-[13px] text-muted-foreground truncate">{user.email}</p>
+              {institutionName && (
+                <p className="text-[13px] text-muted-foreground flex items-center gap-1">
+                  <Building2 style={{ width: 12, height: 12 }} /> {institutionName}
+                </p>
               )}
-            </CardContent>
-          </Card>
+              {majorName && (
+                <p className="text-[13px] text-muted-foreground flex items-center gap-1">
+                  <GraduationCap style={{ width: 12, height: 12 }} /> {majorName}
+                </p>
+              )}
+            </div>
 
-          {/* ── Profile Completion ── */}
-          {isVerified && (
-            <ProfileCompletion fullName={fullName} institutionName={institutionName} majorName={majorName} />
-          )}
-
-          {/* ── Tabs ── */}
-          <div className="flex gap-1 p-1 bg-muted rounded-xl">
-            {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            ))}
+            {/* Stats */}
+            <div className="hidden sm:flex items-center gap-4 shrink-0 self-center">
+              {[
+                { label: 'Posts', value: postCount, icon: FileText },
+                { label: 'Groups', value: groupCount, icon: Users },
+                { label: memberSince ? formatDistanceToNow(new Date(memberSince), { addSuffix: false }) : '—', value: null, icon: Calendar },
+              ].map((s, i, arr) => (
+                <div key={s.label} className="flex items-center gap-4">
+                  <div className="text-center">
+                    {s.value !== null && <p className="text-[18px] font-semibold text-foreground leading-none">{s.value}</p>}
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 justify-center mt-0.5">
+                      <s.icon style={{ width: 10, height: 10 }} /> {s.label}
+                    </p>
+                  </div>
+                  {i < arr.length - 1 && <div className="h-7 w-px bg-border" />}
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* ── Tab: Profile ── */}
-          {activeTab === 'profile' && isVerified && (
-            <Card className="border-border">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <User className="h-4 w-4 text-primary" />
-                  </div>
-                  Edit Profile
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Email</Label>
-                  <Input value={user.email || ''} disabled className="bg-muted/50" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Doe" />
-                </div>
-                <Separator />
-                <div className="space-y-1.5">
-                  <Label htmlFor="instName">Institution Name</Label>
-                  <Input id="instName" value={institutionName} onChange={e => setInstitutionName(e.target.value)} placeholder="Technical University of Kenya" />
-                  <p className="text-[11px] text-muted-foreground">Logo auto-detected and cached — first lookup may take a few seconds.</p>
-                </div>
-                {previewInstitution && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30">
-                    <InstitutionLogo institutionName={previewInstitution} manualLogoUrl={institutionLogoUrl || undefined} fallbackInitials={initials} className="h-10 w-10" />
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">{previewInstitution}</p>
-                      <p className="text-[10px] text-muted-foreground">Logo preview · auto-detected</p>
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="instLogo">Logo URL <span className="text-[10px] text-muted-foreground font-normal">(optional override)</span></Label>
-                  <Input id="instLogo" value={institutionLogoUrl} onChange={e => setInstitutionLogoUrl(e.target.value)} placeholder="https://… (leave blank for auto-detect)" type="url" />
-                </div>
-                <Button onClick={handleSave} disabled={saving} className="w-full h-10">
-                  {saving ? 'Saving…' : 'Save Profile'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeTab === 'profile' && !isVerified && (
-            <Card className="border-border">
-              <CardContent className="py-8 text-center space-y-2">
-                <ShieldAlert className="h-8 w-8 text-destructive mx-auto" />
-                <p className="font-semibold text-foreground">Guest accounts can't edit profiles</p>
-                <p className="text-sm text-muted-foreground">Register with a university email to unlock full access.</p>
-                <Button className="mt-2" onClick={() => navigate('/auth')}>Create Account</Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Tab: Appearance ── */}
-          {activeTab === 'appearance' && (
-            <Card className="border-border">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                    <Palette className="h-4 w-4 text-purple-500" />
-                  </div>
-                  Theme
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-3">
-                  <ThemeCard value="light" label="Light" icon={Sun} current={theme} onClick={() => setTheme('light')}
-                    preview={{ bg: 'bg-white border border-gray-200', card: 'bg-gray-200', accent: 'bg-blue-500' }} />
-                  <ThemeCard value="dark" label="Dark" icon={Moon} current={theme} onClick={() => setTheme('dark')}
-                    preview={{ bg: 'bg-gray-900 border border-gray-700', card: 'bg-gray-700', accent: 'bg-blue-400' }} />
-                  <ThemeCard value="system" label="System" icon={Monitor} current={theme} onClick={() => setTheme('system')}
-                    preview={{ bg: 'bg-gradient-to-r from-white to-gray-900 border border-gray-400', card: 'bg-gray-400', accent: 'bg-blue-500' }} />
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-3">System mode follows your device preference automatically.</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Tab: Account ── */}
-          {activeTab === 'account' && (
-            <div className="space-y-4">
-              <Card className="border-border">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <Settings className="h-4 w-4 text-blue-500" />
-                    </div>
-                    Account Info
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-0">
-                  {[
-                    { label: 'Email', value: user.email },
-                    { label: 'Account type', value: isVerified ? 'Verified Student' : 'Guest' },
-                    { label: 'Member since', value: memberSince ? new Date(memberSince).toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
-                    { label: 'Posts created', value: String(postCount) },
-                    { label: 'Groups joined', value: String(groupCount) },
-                  ].map((row, i, arr) => (
-                    <div key={row.label} className={`flex items-center justify-between py-2.5 ${i < arr.length - 1 ? 'border-b border-border' : ''}`}>
-                      <span className="text-sm text-muted-foreground">{row.label}</span>
-                      <span className="text-sm font-medium text-foreground">{row.value}</span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="border-border">
-                <CardContent className="pt-5"><Disclaimer /></CardContent>
-              </Card>
-
-              {/* Danger Zone */}
-              <Card className="border-destructive/40 bg-destructive/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-4 w-4" /> Danger Zone
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between gap-4 p-3 rounded-lg border border-destructive/20 bg-background">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Sign out of TellMeMore</p>
-                      <p className="text-xs text-muted-foreground">You'll need to sign back in to access your account.</p>
-                    </div>
-                    <Button variant="destructive" size="sm" onClick={handleLogout} className="shrink-0 gap-1.5">
-                      <LogOut className="h-3.5 w-3.5" /> Sign Out
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+          {/* University badge */}
+          {previewInstitution && (
+            <div className="mt-4 flex items-center gap-2.5 bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.07] rounded-2xl px-3 py-2.5 w-fit">
+              <InstitutionLogo
+                institutionName={previewInstitution}
+                manualLogoUrl={institutionLogoUrl || undefined}
+                fallbackInitials={initials}
+                className="h-7 w-7"
+              />
+              <div>
+                <p className="text-[12px] font-semibold text-foreground leading-tight">{previewInstitution}</p>
+                <p className="text-[10px] text-muted-foreground">Verified Institution</p>
+              </div>
             </div>
           )}
+        </GlassCard>
 
-        </main>
+        {/* ── Completion ── */}
+        {isVerified && (
+          <ProfileCompletion fullName={fullName} institutionName={institutionName} majorName={majorName} />
+        )}
 
-        {/* ── Right Marquee ── */}
-        <div className="hidden lg:block sticky top-8" style={{ height: 'calc(100vh - 4rem)' }}>
-          <VerticalMarquee direction="up" />
-        </div>
+        {/* ── Tabs ── */}
+        <GlassCard className="p-1 flex gap-0.5">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-[14px] text-[13px] font-medium transition-all duration-150',
+                activeTab === tab.id
+                  ? 'bg-white dark:bg-white/[0.09] text-foreground shadow-[0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)] shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
+              )}>
+              <tab.icon style={{ width: 13, height: 13 }} />
+              {tab.label}
+            </button>
+          ))}
+        </GlassCard>
+
+        {/* ── Tab: Profile ── */}
+        {activeTab === 'profile' && isVerified && (
+          <GlassCard className="p-5 space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-7 w-7 rounded-xl bg-primary/10 flex items-center justify-center">
+                <User style={{ width: 13, height: 13 }} className="text-primary" />
+              </div>
+              <h2 className="text-[13px] font-semibold text-foreground">Edit Profile</h2>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[12px] text-muted-foreground">Email</Label>
+              <Input value={user.email || ''} disabled className="bg-black/[0.03] dark:bg-white/[0.03] border-black/[0.08] dark:border-white/[0.08] rounded-xl text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[12px] text-muted-foreground">Full Name</Label>
+              <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Doe"
+                className="bg-black/[0.03] dark:bg-white/[0.03] border-black/[0.08] dark:border-white/[0.08] rounded-xl text-[13px]" />
+            </div>
+
+            <Separator className="opacity-50" />
+
+            <div className="space-y-1.5">
+              <Label className="text-[12px] text-muted-foreground">Institution Name</Label>
+              <Input value={institutionName} onChange={e => setInstitutionName(e.target.value)} placeholder="Technical University of Kenya"
+                className="bg-black/[0.03] dark:bg-white/[0.03] border-black/[0.08] dark:border-white/[0.08] rounded-xl text-[13px]" />
+              <p className="text-[11px] text-muted-foreground/60">Logo auto-detected and cached — first lookup may take a few seconds.</p>
+            </div>
+
+            {previewInstitution && (
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.06]">
+                <InstitutionLogo institutionName={previewInstitution} manualLogoUrl={institutionLogoUrl || undefined} fallbackInitials={initials} className="h-9 w-9" />
+                <div>
+                  <p className="text-[12px] font-semibold text-foreground">{previewInstitution}</p>
+                  <p className="text-[10px] text-muted-foreground">Logo preview · auto-detected</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-[12px] text-muted-foreground">
+                Logo URL <span className="text-muted-foreground/40 font-normal">(optional override)</span>
+              </Label>
+              <Input value={institutionLogoUrl} onChange={e => setInstitutionLogoUrl(e.target.value)}
+                placeholder="https://… (leave blank for auto-detect)" type="url"
+                className="bg-black/[0.03] dark:bg-white/[0.03] border-black/[0.08] dark:border-white/[0.08] rounded-xl text-[13px]" />
+            </div>
+
+            <Button onClick={handleSave} disabled={saving} className="w-full rounded-xl h-10 text-[13px]">
+              {saving ? 'Saving…' : 'Save Profile'}
+            </Button>
+          </GlassCard>
+        )}
+
+        {activeTab === 'profile' && !isVerified && (
+          <GlassCard className="py-10 text-center space-y-2">
+            <ShieldAlert className="h-8 w-8 text-rose-500 mx-auto" />
+            <p className="font-semibold text-foreground">Guest accounts can't edit profiles</p>
+            <p className="text-[13px] text-muted-foreground">Register with a university email to unlock full access.</p>
+            <Button className="mt-2 rounded-xl" onClick={() => navigate('/auth')}>Create Account</Button>
+          </GlassCard>
+        )}
+
+        {/* ── Tab: Appearance ── */}
+        {activeTab === 'appearance' && (
+          <GlassCard className="p-5">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="h-7 w-7 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                <Palette style={{ width: 13, height: 13 }} className="text-violet-500" />
+              </div>
+              <h2 className="text-[13px] font-semibold text-foreground">Theme</h2>
+            </div>
+            <div className="flex gap-3">
+              <ThemeCard value="light" label="Light" icon={Sun} current={theme} onClick={() => setTheme('light')}
+                preview={{ bg: 'bg-white border border-gray-100', bar: 'bg-gray-800', line: 'bg-gray-200' }} />
+              <ThemeCard value="dark" label="Dark" icon={Moon} current={theme} onClick={() => setTheme('dark')}
+                preview={{ bg: 'bg-[#0d0d0f] border border-white/10', bar: 'bg-white/80', line: 'bg-white/10' }} />
+              <ThemeCard value="system" label="System" icon={Monitor} current={theme} onClick={() => setTheme('system')}
+                preview={{ bg: 'bg-gradient-to-r from-white to-[#0d0d0f] border border-gray-300', bar: 'bg-gray-500', line: 'bg-gray-300' }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground/60 mt-3">System mode follows your device preference automatically.</p>
+          </GlassCard>
+        )}
+
+        {/* ── Tab: Account ── */}
+        {activeTab === 'account' && (
+          <div className="space-y-4">
+            {/* Info */}
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-7 w-7 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <Settings style={{ width: 13, height: 13 }} className="text-blue-500" />
+                </div>
+                <h2 className="text-[13px] font-semibold text-foreground">Account Info</h2>
+              </div>
+              <div className="space-y-0">
+                {[
+                  { label: 'Email', value: user.email },
+                  { label: 'Account type', value: isVerified ? 'Verified Student' : 'Guest' },
+                  { label: 'Member since', value: memberSince ? new Date(memberSince).toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' }) : '—' },
+                  { label: 'Posts created', value: String(postCount) },
+                  { label: 'Groups joined', value: String(groupCount) },
+                ].map((row, i, arr) => (
+                  <div key={row.label} className={cn('flex items-center justify-between py-2.5', i < arr.length - 1 && 'border-b border-black/[0.05] dark:border-white/[0.05]')}>
+                    <span className="text-[13px] text-muted-foreground">{row.label}</span>
+                    <span className="text-[13px] font-medium text-foreground">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+
+            {/* Disclaimer */}
+            <GlassCard className="p-5">
+              <Disclaimer />
+            </GlassCard>
+
+            {/* Danger Zone */}
+            <GlassCard className="p-5 border-rose-500/20 dark:border-rose-500/15">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertTriangle style={{ width: 14, height: 14 }} className="text-rose-500" />
+                <h2 className="text-[13px] font-semibold text-rose-500">Danger Zone</h2>
+              </div>
+              <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06]">
+                <div>
+                  <p className="text-[13px] font-medium text-foreground">Sign out of TellMeMore</p>
+                  <p className="text-[11px] text-muted-foreground">You'll need to sign back in to access your account.</p>
+                </div>
+                <Button variant="destructive" size="sm" onClick={handleLogout} className="shrink-0 gap-1.5 rounded-xl text-[12px]">
+                  <LogOut style={{ width: 12, height: 12 }} /> Sign Out
+                </Button>
+              </div>
+            </GlassCard>
+          </div>
+        )}
 
       </div>
     </div>
