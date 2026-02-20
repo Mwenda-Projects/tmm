@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuestStatus } from '@/contexts/GuestContext';
@@ -129,7 +130,7 @@ export default function GroupDetail() {
   };
 
   if (!user || !groupId) return null;
-  if (activeCall) return <VideoCall currentUserId={user.id} remoteUserId={activeCall.targetUserId} callSessionId={activeCall.sessionId} isCaller={true} remoteName={activeCall.targetName} onEnd={() => setActiveCall(null)} />;
+  // VideoCall rendered via portal (see bottom of return)
   if (loadingGroup) return <div className="min-h-screen flex items-center justify-center bg-[#f0f2f5] dark:bg-[#0d0d0f]"><div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
   if (!group) return <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3"><p className="text-[14px] text-muted-foreground">Group not found.</p><Button asChild variant="outline" size="sm" className="rounded-xl"><Link to="/groups"><ArrowLeft style={{ width: 14, height: 14 }} className="mr-1" /> Back</Link></Button></div>;
 
@@ -282,6 +283,19 @@ export default function GroupDetail() {
           </GlassCard>
         )}
       </div>
+
+      {/* VideoCall via portal — escapes overflow-hidden stacking contexts */}
+      {activeCall && user && createPortal(
+        <VideoCall
+          currentUserId={user.id}
+          remoteUserId={activeCall.targetUserId}
+          callSessionId={activeCall.sessionId}
+          isCaller={true}
+          remoteName={activeCall.targetName}
+          onEnd={() => setActiveCall(null)}
+        />,
+        document.body,
+      )}
     </div>
   );
 }

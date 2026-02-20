@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuestStatus } from '@/contexts/GuestContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 type MatchState = 'idle' | 'searching' | 'matched' | 'in-call';
 
-// ─── Animated dots ────────────────────────────────────────────────────────────
+// ─── Animated bouncing dots ───────────────────────────────────────────────────
 
 function SearchingDots() {
   return (
@@ -34,7 +35,7 @@ function SearchTimer() {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return (
-    <span className="font-mono text-[13px] text-white/40 tabular-nums">
+    <span className="font-mono text-[13px] text-white/40 dark:text-white/40 text-muted-foreground tabular-nums">
       {m > 0 ? `${m}m ` : ''}{s}s
     </span>
   );
@@ -130,121 +131,107 @@ export function RandomVideoChat() {
     setState('idle');
   }, []);
 
-  // In-call: hand off entirely to VideoCall
-  if (state === 'in-call' && user && matchedUserId && callSessionId) {
-    return (
-      <VideoCall
-        currentUserId={user.id}
-        remoteUserId={matchedUserId}
-        callSessionId={callSessionId}
-        isCaller={isCaller}
-        remoteName={matchedName}
-        remoteInstitution={matchedInstitution}
-        onEnd={handleCallEnd}
-      />
-    );
-  }
+  // ── In-call: render VideoCall via portal so it escapes overflow-hidden / backdrop-blur stacking contexts ──
+  const videoCallPortal = state === 'in-call' && user && matchedUserId && callSessionId
+    ? createPortal(
+        <VideoCall
+          currentUserId={user.id}
+          remoteUserId={matchedUserId}
+          callSessionId={callSessionId}
+          isCaller={isCaller}
+          remoteName={matchedName}
+          remoteInstitution={matchedInstitution}
+          onEnd={handleCallEnd}
+        />,
+        document.body,
+      )
+    : null;
 
   return (
-    <div className={cn(
-      'relative rounded-[20px] overflow-hidden border',
-      'bg-white/70 dark:bg-white/[0.04]',
-      'border-white/60 dark:border-white/[0.08]',
-      'shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_32px_rgba(0,0,0,0.4)]',
-      'backdrop-blur-xl',
-    )}>
-      {/* Ambient glow (dark only) */}
-      <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-[80px] opacity-20 pointer-events-none hidden dark:block"
-        style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+    <>
+      {/* Portal renders VideoCall at document.body level */}
+      {videoCallPortal}
 
-      <div className="relative z-10 p-5">
+      {/* Card UI — only visible when not in-call */}
+      {state !== 'in-call' && (
+        <div className="space-y-4">
 
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Shuffle style={{ width: 14, height: 14 }} className="text-primary" />
-          </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-foreground leading-tight">Random Video Chat</h3>
-            <p className="text-[11px] text-muted-foreground">Meet a random student</p>
-          </div>
+          {/* Guest block */}
+          {isGuest ? (
+            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-500/[0.08] border border-rose-500/15">
+              <ShieldAlert style={{ width: 15, height: 15 }} className="text-rose-500 mt-0.5 shrink-0" />
+              <p className="text-[12px] text-muted-foreground">
+                Sign in with a university email to access video chat.
+              </p>
+            </div>
+
+          ) : state === 'searching' ? (
+            /* Searching state */
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center gap-5 py-8 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.06]">
+                {/* Radar rings */}
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute h-16 w-16 rounded-full border border-primary/30 animate-ping" style={{ animationDuration: '1.5s' }} />
+                  <div className="absolute h-24 w-24 rounded-full border border-primary/15 animate-ping" style={{ animationDuration: '1.5s', animationDelay: '0.4s' }} />
+                  <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center z-10">
+                    <Users style={{ width: 20, height: 20 }} className="text-primary" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-1.5">
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-[14px] font-semibold text-foreground">Looking for a peer</p>
+                    <SearchingDots />
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <p className="text-[12px] text-muted-foreground">Searching for</p>
+                    <SearchTimer />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Usually takes less than a minute</p>
+                </div>
+              </div>
+
+              <button onClick={cancelSearch}
+                className={cn(
+                  'w-full h-10 rounded-xl text-[13px] font-medium flex items-center justify-center gap-2 transition-all',
+                  'bg-black/[0.04] dark:bg-white/[0.05] hover:bg-black/[0.07] dark:hover:bg-white/[0.08]',
+                  'border border-black/[0.08] dark:border-white/[0.08] text-muted-foreground hover:text-foreground',
+                )}>
+                <X style={{ width: 14, height: 14 }} /> Stop Searching
+              </button>
+            </div>
+
+          ) : (
+            /* Idle state */
+            <div className="space-y-4">
+              <p className="text-[13px] text-muted-foreground leading-relaxed">
+                Get matched with a random verified student for a peer-to-peer video call. Great for meeting new people across Kenyan universities!
+              </p>
+
+              {/* Feature pills */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { icon: Zap,   label: 'Instant match',      color: 'text-amber-500',   bg: 'bg-amber-500/10'   },
+                  { icon: Users, label: 'Verified students',  color: 'text-blue-500',    bg: 'bg-blue-500/10'    },
+                  { icon: Video, label: 'HD video',           color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                ].map(f => (
+                  <span key={f.label}
+                    className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-current/20', f.bg, f.color)}>
+                    <f.icon style={{ width: 10, height: 10 }} />
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+
+              <button onClick={startSearching}
+                className="w-full h-12 rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-[0.98]">
+                <Video style={{ width: 17, height: 17 }} />
+                Find a Random Peer
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Guest block */}
-        {isGuest ? (
-          <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-500/8 dark:bg-rose-500/10 border border-rose-500/15">
-            <ShieldAlert style={{ width: 15, height: 15 }} className="text-rose-500 mt-0.5 shrink-0" />
-            <p className="text-[12px] text-muted-foreground">
-              Sign in with a university email to access video chat.
-            </p>
-          </div>
-
-        ) : state === 'searching' ? (
-          /* Searching state */
-          <div className="space-y-4">
-            {/* Animated search card */}
-            <div className="flex flex-col items-center justify-center gap-4 py-7 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.06]">
-              {/* Pulsing radar rings */}
-              <div className="relative flex items-center justify-center">
-                <div className="absolute h-16 w-16 rounded-full border border-primary/30 animate-ping" style={{ animationDuration: '1.5s' }} />
-                <div className="absolute h-24 w-24 rounded-full border border-primary/15 animate-ping" style={{ animationDuration: '1.5s', animationDelay: '0.4s' }} />
-                <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center z-10">
-                  <Users style={{ width: 20, height: 20 }} className="text-primary" />
-                </div>
-              </div>
-
-              <div className="text-center space-y-1">
-                <div className="flex items-center justify-center gap-2">
-                  <p className="text-[14px] font-semibold text-foreground">Looking for a peer</p>
-                  <SearchingDots />
-                </div>
-                <div className="flex items-center justify-center gap-1.5">
-                  <p className="text-[12px] text-muted-foreground">Searching for</p>
-                  <SearchTimer />
-                </div>
-                <p className="text-[11px] text-muted-foreground">Usually takes less than a minute</p>
-              </div>
-            </div>
-
-            <button onClick={cancelSearch}
-              className={cn(
-                'w-full h-10 rounded-xl text-[13px] font-medium flex items-center justify-center gap-2 transition-all',
-                'bg-black/[0.04] dark:bg-white/[0.05] hover:bg-black/[0.07] dark:hover:bg-white/[0.08]',
-                'border border-black/[0.08] dark:border-white/[0.08] text-muted-foreground hover:text-foreground',
-              )}>
-              <X style={{ width: 14, height: 14 }} /> Stop Searching
-            </button>
-          </div>
-
-        ) : (
-          /* Idle state */
-          <div className="space-y-4">
-            <p className="text-[13px] text-muted-foreground leading-relaxed">
-              Get matched with a random verified student for a peer-to-peer video call. Great for meeting new people across Kenyan universities!
-            </p>
-
-            {/* Feature pills */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { icon: Zap, label: 'Instant match',      color: 'text-amber-500',   bg: 'bg-amber-500/10'   },
-                { icon: Users, label: 'Verified students', color: 'text-blue-500',    bg: 'bg-blue-500/10'    },
-                { icon: Video, label: 'HD video',          color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              ].map(f => (
-                <span key={f.label} className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border', f.bg, f.color, 'border-current/20')}>
-                  <f.icon style={{ width: 10, height: 10 }} />
-                  {f.label}
-                </span>
-              ))}
-            </div>
-
-            <button onClick={startSearching}
-              className="w-full h-12 rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-[0.98]">
-              <Video style={{ width: 17, height: 17 }} />
-              Find a Random Peer
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 }
