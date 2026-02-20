@@ -28,7 +28,6 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -36,7 +35,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 }
@@ -44,7 +42,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { isGuest } = useGuestStatus();
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -52,11 +49,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  // Don't redirect guests away from auth — they need to be able to register
   if (user && !isGuest) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
+
+// ─── Incoming Call Handler ────────────────────────────────────────────────────
+// Rendered LAST inside the provider tree so it always paints above everything.
+// IncomingCallModal uses createPortal → appended to document.body, escaping
+// all stacking contexts created by NavBar / AppLayout backdrop-blur transforms.
 
 function IncomingCallHandler() {
   const { user } = useAuth();
@@ -69,7 +69,6 @@ function IncomingCallHandler() {
     callerInstitution?: string;
   } | null>(null);
 
-  // Guests don't get calls
   if (isGuest) return null;
 
   if (activeCall && user) {
@@ -108,6 +107,8 @@ function IncomingCallHandler() {
   );
 }
 
+// ─── App Layout ───────────────────────────────────────────────────────────────
+
 function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   return (
@@ -120,6 +121,37 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ─── Inner app — needs auth/guest context so lives inside providers ───────────
+
+function InnerApp() {
+  return (
+    <>
+      {/* Page layout + routes */}
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+          <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+          <Route path="/posts" element={<ProtectedRoute><Posts /></ProtectedRoute>} />
+          <Route path="/wellness" element={<ProtectedRoute><Wellness /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AppLayout>
+
+      {/* Incoming call handler rendered AFTER AppLayout so it's
+          highest in paint order. IncomingCallModal uses createPortal
+          so it escapes backdrop-blur stacking contexts entirely. */}
+      <IncomingCallHandler />
+    </>
+  );
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -129,21 +161,7 @@ const App = () => (
         <AuthProvider>
           <ThemeProvider>
             <GuestProvider>
-              <IncomingCallHandler />
-              <AppLayout>
-                <Routes>
-                  <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-                  <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-                  <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-                  <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
-                  <Route path="/posts" element={<ProtectedRoute><Posts /></ProtectedRoute>} />
-                  <Route path="/wellness" element={<ProtectedRoute><Wellness /></ProtectedRoute>} />
-                  <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-                  <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </AppLayout>
+              <InnerApp />
             </GuestProvider>
           </ThemeProvider>
         </AuthProvider>
