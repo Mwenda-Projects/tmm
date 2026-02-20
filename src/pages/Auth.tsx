@@ -591,12 +591,18 @@ export default function Auth() {
   const handleGuestAccess = async () => {
     setError(''); setGuestLoading(true);
     try {
+      // Sign in anonymously — Supabase marks user.is_anonymous = true automatically.
+      // No approval needed. GuestContext reads user.is_anonymous to gate features.
       const { data, error: anonError } = await supabase.auth.signInAnonymously();
       if (anonError) throw anonError;
       const userId = data.user?.id;
       if (!userId) throw new Error('Failed to create guest session.');
-      await supabase.from('guest_sessions' as any).insert({ user_id: userId, display_name: 'Guest' } as any);
-      notify({ title: 'Welcome, Gate Crusher!', description: 'You have 24 hours of view-only access.', variant: 'success' });
+      // Best-effort: record the session. Don't block navigation if this fails
+      // (e.g. RLS may deny it, which is fine — is_anonymous flag is the source of truth).
+      supabase.from('guest_sessions' as any)
+        .insert({ user_id: userId, display_name: 'Gate Crusher' } as any)
+        .then(() => {/* silent */});
+      notify({ title: 'Welcome, Gate Crusher! 👀', description: 'You have 24 hours of view-only access.', variant: 'success' });
       navigate('/');
     } catch (err: any) { setError(err.message || 'Failed to start guest session.'); }
     finally { setGuestLoading(false); }
