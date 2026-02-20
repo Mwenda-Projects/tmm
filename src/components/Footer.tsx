@@ -6,7 +6,7 @@ export function Footer() {
       <div className="max-w-5xl mx-auto flex flex-col items-center justify-center space-y-4">
         <Disclaimer />
         <p className="text-[10px] text-muted-foreground/60">
-          © {new Date().getFullYear()} TellMeMore. Built with{' '}
+          © {new Date().getFullYear()} Tell MeMore. Built with{' '}
           <a
             href="https://oflix-lac.vercel.app"
             target="_blank"
