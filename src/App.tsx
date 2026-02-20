@@ -23,6 +23,8 @@ import GroupDetail from "./pages/GroupDetail";
 import Wellness from "./pages/Wellness";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
+import { Terms } from "@/components/Terms";
+import { Privacy } from "@/components/Privacy";
 
 const queryClient = new QueryClient();
 
@@ -138,6 +140,8 @@ function InnerApp() {
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AppLayout>
