@@ -1,5 +1,6 @@
-import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Phone, PhoneOff, Video } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface IncomingCallModalProps {
   callerName: string;
@@ -8,37 +9,89 @@ interface IncomingCallModalProps {
   onDecline: () => void;
 }
 
+function getInitials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+// ─── Ringing duration counter ─────────────────────────────────────────────────
+
+function RingingTimer() {
+  const [dots, setDots] = useState('');
+  useEffect(() => {
+    const t = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 600);
+    return () => clearInterval(t);
+  }, []);
+  return <span className="text-white/50 text-[13px]">Ringing{dots}</span>;
+}
+
 export function IncomingCallModal({ callerName, callerInstitution, onAccept, onDecline }: IncomingCallModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-2xl p-8 shadow-lg text-center max-w-sm w-full mx-4">
-        <div className="mb-2">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-            <Phone className="h-7 w-7 text-primary animate-pulse" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground">Incoming Call</h3>
-          <p className="text-foreground font-medium mt-1">{callerName}</p>
-          {callerInstitution && (
-            <p className="text-sm text-muted-foreground">{callerInstitution}</p>
-          )}
-        </div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onDecline} />
 
-        <div className="flex items-center justify-center gap-6 mt-6">
-          <Button
-            variant="destructive"
-            size="icon"
-            className="rounded-full h-14 w-14"
-            onClick={onDecline}
-          >
-            <PhoneOff className="h-6 w-6" />
-          </Button>
-          <Button
-            size="icon"
-            className="rounded-full h-14 w-14 bg-green-600 hover:bg-green-700 text-white"
-            onClick={onAccept}
-          >
-            <Phone className="h-6 w-6" />
-          </Button>
+      {/* Card */}
+      <div className={cn(
+        'relative z-10 w-full max-w-sm rounded-[28px] overflow-hidden',
+        'border border-white/[0.12]',
+        'shadow-[0_32px_80px_rgba(0,0,0,0.8)]',
+      )}
+        style={{ background: 'linear-gradient(145deg, #111118 0%, #0d1020 100%)' }}>
+
+        {/* Ambient glow behind avatar */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-[80px] opacity-30 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+
+        <div className="relative z-10 px-8 pt-10 pb-8 text-center flex flex-col items-center gap-5">
+
+          {/* Avatar with pulsing rings */}
+          <div className="relative">
+            {/* Outer pulse rings */}
+            <div className="absolute inset-[-16px] rounded-full border border-primary/20 animate-ping" style={{ animationDuration: '1.8s' }} />
+            <div className="absolute inset-[-8px] rounded-full border border-primary/30 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.4s' }} />
+
+            <div className="h-24 w-24 rounded-full bg-gradient-to-br from-primary to-primary/40 flex items-center justify-center text-[26px] font-bold text-white shadow-xl shadow-primary/20 relative z-10">
+              {getInitials(callerName)}
+            </div>
+
+            {/* Video call badge */}
+            <div className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-[#111118] z-20">
+              <Video style={{ width: 14, height: 14 }} className="text-white" />
+            </div>
+          </div>
+
+          {/* Caller info */}
+          <div className="space-y-1">
+            <p className="text-[11px] text-white/40 uppercase tracking-widest font-semibold">Incoming Video Call</p>
+            <h3 className="text-[22px] font-bold text-white leading-tight">{callerName}</h3>
+            {callerInstitution && (
+              <p className="text-[13px] text-white/50">{callerInstitution}</p>
+            )}
+            <RingingTimer />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-center gap-10 pt-2 w-full">
+
+            {/* Decline */}
+            <div className="flex flex-col items-center gap-2">
+              <button onClick={onDecline}
+                className="h-16 w-16 rounded-full bg-rose-500/90 hover:bg-rose-500 flex items-center justify-center shadow-xl shadow-rose-900/50 transition-all active:scale-90">
+                <PhoneOff style={{ width: 24, height: 24 }} className="text-white rotate-[135deg]" />
+              </button>
+              <span className="text-[12px] text-white/50 font-medium">Decline</span>
+            </div>
+
+            {/* Accept */}
+            <div className="flex flex-col items-center gap-2">
+              <button onClick={onAccept}
+                className="h-16 w-16 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center shadow-xl shadow-emerald-900/50 transition-all active:scale-90 animate-[pulse_2s_ease-in-out_infinite]">
+                <Phone style={{ width: 24, height: 24 }} className="text-white" />
+              </button>
+              <span className="text-[12px] text-white/50 font-medium">Accept</span>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>

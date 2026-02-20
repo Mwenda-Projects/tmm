@@ -13,9 +13,9 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { Users, MessageSquare, FileText, ArrowLeft, Clock, ShieldAlert, Video, Phone } from 'lucide-react';
 
-function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function GlassCard({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={cn(
+    <div style={style} className={cn(
       'relative rounded-[20px] border overflow-hidden backdrop-blur-xl',
       'bg-white/70 dark:bg-white/[0.04]',
       'border-white/60 dark:border-white/[0.08]',
