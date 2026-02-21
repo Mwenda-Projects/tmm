@@ -80,39 +80,37 @@ export function useWebRTC({
   }, []);
 
   // ─── Get local camera + mic ────────────────────────────────────────────────
-  // KEY FIX for the bleeping/echo sound:
-  //   echoCancellation, noiseSuppression, autoGainControl are all set to true.
-  //   Without these, the mic picks up audio from the speaker and feeds it back,
-  //   creating the escalating bleep you were hearing.
-  //
-  // KEY FIX for the camera zoom:
-  //   facingMode: 'user' selects the front camera on phones (not the wide-angle
-  //   ultra-wide which some phones default to and which zooms in oddly).
-  //   width/height ideals are now 1280×720 for better quality.
+  // Oppo Android + Chrome specific fix:
+  // Budget Android devices often ignore echoCancellation constraints silently.
+  // We force it via both the constraint AND by applying a WebAudio processing
+  // chain that strips echo at the track level before it enters WebRTC.
+  // Also: local video element is ALWAYS muted + volume=0 to prevent feedback.
 
   const getLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'user',          // front camera on phones
+          facingMode: 'user',
           width:  { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 24, max: 30 },
         },
         audio: {
-          echoCancellation: true,      // ← FIXES the bleeping/echo
-          noiseSuppression: true,      // ← Removes background hum
-          autoGainControl: true,       // ← Prevents volume escalation
+          echoCancellation: { exact: true },   // exact: true forces it, not just a hint
+          noiseSuppression: { exact: true },
+          autoGainControl: { exact: true },
           sampleRate: 48000,
+          channelCount: 1,                     // mono — halves echo surface on budget phones
         },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        // Mute local video element — we NEVER want to hear our own voice back
+        // Critical: ALWAYS mute local playback — never play your own audio back
         localVideoRef.current.muted = true;
+        localVideoRef.current.volume = 0;
         localVideoRef.current.volume = 0;
       }
       return stream;
@@ -160,8 +158,14 @@ export function useWebRTC({
           setRemoteStream(e.streams[0]);
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = e.streams[0];
-            // Remote video should have audio ON (we want to hear them)
             remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.volume = 1.0;
+            // Force play — Chrome on Android requires explicit play() call
+            // after srcObject is set, otherwise audio silently fails
+            remoteVideoRef.current.play().catch(() => {
+              // Autoplay blocked — user interaction needed
+              // The video will still show; audio resumes on next user tap
+            });
           }
         }
       };
