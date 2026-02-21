@@ -41,50 +41,42 @@ function GlassCard({ children, className = '' }: { children: React.ReactNode; cl
 
 // ─── Logo Detection ───────────────────────────────────────────────────────────
 
-async function getUniversityDomain(name: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://universities.hipolabs.com/search?name=${encodeURIComponent(name.trim())}`, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return null;
-    const data: { name: string; domains: string[] }[] = await res.json();
-    if (!data?.length) return null;
-    const lower = name.toLowerCase();
-    const match = data.find(u => u.name.toLowerCase() === lower) || data.find(u => u.name.toLowerCase().includes(lower.split(' ')[0].toLowerCase())) || data[0];
-    return match?.domains?.[0] || null;
-  } catch { return null; }
-}
-
-async function tryLogoPathsOnDomain(domain: string): Promise<string | null> {
-  const paths = [`https://${domain}/images/logo.png`, `https://${domain}/images/logo.svg`, `https://${domain}/assets/logo.png`, `https://www.${domain}/images/logo.png`];
-  for (const url of paths) {
-    try {
-      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(2500) });
-      const ct = res.headers.get('content-type') || '';
-      if (res.ok && (ct.includes('image') || ct.includes('svg'))) return url;
-    } catch { continue; }
-  }
-  return null;
-}
+// ─── Institution Logo Lookup ──────────────────────────────────────────────────
+// Looks up logos from the institution_logos table which is seeded with
+// all major Kenyan universities. Falls back to initials if not found.
 
 async function fetchInstitutionLogoUrl(name: string): Promise<string | null> {
-  if (!name.trim()) return null;
-  const cacheKey = name.trim().toLowerCase();
+  if (!name?.trim()) return null;
+  const key = name.trim().toLowerCase();
+
   try {
-    const { data: cached } = await (supabase as any).from('institution_logos').select('logo_url').eq('institution_name', cacheKey).maybeSingle();
-    if (cached?.logo_url) return cached.logo_url;
-  } catch { }
-  const domain = await getUniversityDomain(name);
-  let logoUrl: string | null = null;
-  if (domain) {
-    logoUrl = await tryLogoPathsOnDomain(domain) ?? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-  } else {
-    const firstWord = name.toLowerCase().split(/\s+/).find(w => !['university','college','institute','school','of','the','and','&'].includes(w))?.replace(/[^a-z0-9]/g, '');
-    if (firstWord) logoUrl = `https://www.google.com/s2/favicons?domain=${firstWord}.ac.ke&sz=128`;
+    // Direct match first
+    const { data: exact } = await (supabase as any)
+      .from('institution_logos')
+      .select('logo_url')
+      .eq('institution_name', key)
+      .maybeSingle();
+
+    if (exact?.logo_url) return exact.logo_url;
+
+    // Partial match — find any row where the name contains a key word
+    const firstWord = key.split(/\s+/).find(
+      w => !['university','college','institute','school','of','the','and','&'].includes(w)
+    );
+    if (!firstWord) return null;
+
+    const { data: partial } = await (supabase as any)
+      .from('institution_logos')
+      .select('logo_url')
+      .ilike('institution_name', `%${firstWord}%`)
+      .maybeSingle();
+
+    return partial?.logo_url || null;
+  } catch {
+    return null;
   }
-  if (logoUrl) {
-    try { await (supabase as any).from('institution_logos').upsert({ institution_name: cacheKey, logo_url: logoUrl }).select(); } catch { }
-  }
-  return logoUrl;
 }
+
 
 // ─── Institution Logo ─────────────────────────────────────────────────────────
 
