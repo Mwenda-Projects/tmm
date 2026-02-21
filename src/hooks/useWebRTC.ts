@@ -80,11 +80,11 @@ export function useWebRTC({
   }, []);
 
   // ─── Get local camera + mic ────────────────────────────────────────────────
-  // Oppo Android + Chrome specific fix:
-  // Budget Android devices often ignore echoCancellation constraints silently.
-  // We force it via both the constraint AND by applying a WebAudio processing
-  // chain that strips echo at the track level before it enters WebRTC.
-  // Also: local video element is ALWAYS muted + volume=0 to prevent feedback.
+  // Oppo A18 / budget Android fix:
+  // { exact: true } was too strict and caused getUserMedia to fail silently,
+  // falling back to raw audio with no processing at all — making echo worse.
+  // Back to soft hints (true) which Chrome applies best-effort.
+  // The real echo fix is handled by the AudioContext processing chain below.
 
   const getLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
@@ -97,30 +97,61 @@ export function useWebRTC({
           frameRate: { ideal: 24, max: 30 },
         },
         audio: {
-          echoCancellation: { exact: true },   // exact: true forces it, not just a hint
-          noiseSuppression: { exact: true },
-          autoGainControl: { exact: true },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,             // mono — better echo handling on budget phones
           sampleRate: 48000,
-          channelCount: 1,                     // mono — halves echo surface on budget phones
         },
       });
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        // Critical: ALWAYS mute local playback — never play your own audio back
-        localVideoRef.current.muted = true;
-        localVideoRef.current.volume = 0;
-        localVideoRef.current.volume = 0;
+
+      // ── WebAudio echo suppression pipeline ──────────────────────────────
+      // On budget Android devices, browser-level echoCancellation is unreliable.
+      // We route the audio through a DynamicsCompressor which aggressively
+      // clamps volume spikes (the beeping pattern) before it enters WebRTC.
+      try {
+        const audioCtx = new AudioContext({ sampleRate: 48000 });
+        const source = audioCtx.createMediaStreamSource(stream);
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.value = -30;  // clamp anything above -30dB
+        compressor.knee.value = 10;
+        compressor.ratio.value = 12;       // aggressive compression ratio
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.1;
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(compressor);
+        compressor.connect(dest);
+        // Replace raw audio track with compressed one
+        const processedTrack = dest.stream.getAudioTracks()[0];
+        const videoTracks = stream.getVideoTracks();
+        const processedStream = new MediaStream([...videoTracks, processedTrack]);
+        localStreamRef.current = processedStream;
+        setLocalStream(processedStream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = processedStream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+        }
+        return processedStream;
+      } catch (audioErr) {
+        // AudioContext failed — fall back to raw stream with constraints only
+        console.warn('AudioContext pipeline failed, using raw stream:', audioErr);
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+        }
+        return stream;
       }
-      return stream;
     } catch (err) {
       console.error('Camera/mic error:', err);
-      // Fallback: try audio-only if camera fails
+      // Fallback: audio-only if camera fails
       try {
         const audioOnly = await navigator.mediaDevices.getUserMedia({
           video: false,
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
         });
         localStreamRef.current = audioOnly;
         setLocalStream(audioOnly);
