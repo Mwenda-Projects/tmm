@@ -467,7 +467,7 @@ function PostCard({ post, userId, isGuest, onDeleted }: {
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {comments.map(comment => (
-                    <div key={comment.id} className="flex gap-2.5">
+                    <div key={comment.id} className="flex gap-2.5 group">
                       <Avatar className="h-6 w-6 shrink-0 mt-0.5">
                         <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">
                           {getInitials(comment.authorName || 'U')}
@@ -479,6 +479,19 @@ function PostCard({ post, userId, isGuest, onDeleted }: {
                           <span className="text-[10px] text-muted-foreground">
                             {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                           </span>
+                          {/* Delete button — only visible to comment owner */}
+                          {comment.user_id === userId && (
+                            <button
+                              onClick={async () => {
+                                await supabase.from('post_comments').delete().eq('id', comment.id);
+                                setComments(prev => prev.filter(c => c.id !== comment.id));
+                                setCommentCount(prev => Math.max(0, prev - 1));
+                              }}
+                              className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-rose-400 hover:text-rose-600"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                         <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">{comment.content}</p>
                       </div>
