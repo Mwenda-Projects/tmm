@@ -20,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 // ─── Glass Card ───────────────────────────────────────────────────────────────
 
@@ -215,6 +216,65 @@ function ThemeCard({ value, label, icon: Icon, current, onClick, preview }: {
 type Tab = 'profile' | 'appearance' | 'account';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+// ─── Push Notification Card ───────────────────────────────────────────────────
+function PushNotificationCard() {
+  const { isSupported, permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
+
+  if (!isSupported) {
+    return (
+      <GlassCard className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-lg">🔔</span>
+          <h2 className="text-[13px] font-semibold text-foreground">Push Notifications</h2>
+        </div>
+        <p className="text-[12px] text-muted-foreground">
+          Push notifications are not supported on this browser. Try Chrome on Android or desktop.
+        </p>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <GlassCard className="p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="h-7 w-7 rounded-xl bg-violet-500/10 flex items-center justify-center">
+          <span className="text-[14px]">🔔</span>
+        </div>
+        <h2 className="text-[13px] font-semibold text-foreground">Push Notifications</h2>
+      </div>
+
+      <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06]">
+        <div>
+          <p className="text-[13px] font-medium text-foreground">
+            {isSubscribed ? 'Notifications enabled' : 'Get notified instantly'}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {permission === 'denied'
+              ? 'Blocked in browser settings — enable in site permissions'
+              : isSubscribed
+              ? 'Messages, calls and activity will notify you'
+              : 'Stay updated on messages, calls and campus activity'}
+          </p>
+        </div>
+
+        {permission === 'denied' ? (
+          <span className="text-[11px] text-rose-400 shrink-0">Blocked</span>
+        ) : (
+          <Button
+            size="sm"
+            variant={isSubscribed ? 'outline' : 'default'}
+            onClick={isSubscribed ? unsubscribe : subscribe}
+            disabled={isLoading}
+            className="shrink-0 rounded-xl text-[12px] h-8"
+          >
+            {isLoading ? '...' : isSubscribed ? 'Turn off' : 'Enable'}
+          </Button>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -528,6 +588,9 @@ export default function SettingsPage() {
                 ))}
               </div>
             </GlassCard>
+
+            {/* Push Notifications */}
+            <PushNotificationCard />
 
             {/* Disclaimer */}
             <GlassCard className="p-5">
