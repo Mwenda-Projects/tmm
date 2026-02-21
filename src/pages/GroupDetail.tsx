@@ -213,9 +213,12 @@ export default function GroupDetail() {
                             <p className="text-[11px] text-muted-foreground truncate">{m.email}</p>
                           </div>
                         </div>
-                        <Button size="sm" onClick={() => startVideoCall(m.user_id, name)} className="rounded-xl text-[12px] h-8 gap-1.5 shrink-0">
-                          <Phone style={{ width: 12, height: 12 }} /> Call
-                        </Button>
+                        <div className="flex flex-col items-end gap-1">
+                          <Button size="sm" onClick={() => startVideoCall(m.user_id, name)} className="rounded-xl text-[12px] h-8 gap-1.5 shrink-0">
+                            <Phone style={{ width: 12, height: 12 }} /> Call
+                          </Button>
+                          <span className="text-[10px] text-muted-foreground/50">🎧 earphones recommended</span>
+                        </div>
                       </div>
                     );
                   })}

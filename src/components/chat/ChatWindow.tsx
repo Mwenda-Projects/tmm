@@ -310,10 +310,17 @@ export function ChatWindow({ type, currentUserId, otherUserId, groupId, title }:
         </div>
 
         {type === 'dm' && !isGuest && (
-          <button onClick={initiateCall}
-            className="h-9 w-9 rounded-xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
-            <Video style={{ width: 16, height: 16 }} className="text-primary" />
-          </button>
+          <div className="relative group">
+            <button onClick={initiateCall}
+              className="h-9 w-9 rounded-xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
+              <Video style={{ width: 16, height: 16 }} className="text-primary" />
+            </button>
+            {/* Earphone tip tooltip */}
+            <div className="absolute right-0 top-11 w-52 px-3 py-2 rounded-xl text-[11px] text-white/70 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal"
+              style={{ background: 'rgba(20,20,30,0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              🎧 Use earphones or Bluetooth for best audio quality
+            </div>
+          </div>
         )}
       </div>
 

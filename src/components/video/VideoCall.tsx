@@ -199,6 +199,13 @@ export function VideoCall({
               </button>
             </div>
 
+            {/* Earphone tip */}
+            <div className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-lg">🎧</span>
+              <span className="text-[12px] text-white/45">Use earphones or Bluetooth for best audio quality</span>
+            </div>
+
             {mediaError && (
               <div className="mt-5 w-full px-4 py-3 rounded-2xl text-[13px] text-rose-300"
                 style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
