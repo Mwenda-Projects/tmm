@@ -333,6 +333,26 @@ export default function SettingsPage() {
   };
 
   const handleLogout = async () => { await signOut(); navigate('/auth'); };
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleteAccountLoading(true);
+    try {
+      const uid = user?.id;
+      if (!uid) return;
+      // Delete profile and related data (cascades to posts, comments, likes etc via FK)
+      await supabase.from('profiles').delete().eq('user_id', uid);
+      // Sign out and redirect — Supabase will handle auth.users cleanup
+      await signOut();
+      navigate('/auth');
+    } catch (err) {
+      console.error('Delete account failed:', err);
+    } finally {
+      setDeleteAccountLoading(false);
+    }
+  };
 
   if (!user || loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -595,7 +615,9 @@ export default function SettingsPage() {
                 <AlertTriangle style={{ width: 14, height: 14 }} className="text-rose-500" />
                 <h2 className="text-[13px] font-semibold text-rose-500">Danger Zone</h2>
               </div>
-              <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06]">
+
+              {/* Sign Out */}
+              <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/[0.05] dark:border-white/[0.06] mb-3">
                 <div>
                   <p className="text-[13px] font-medium text-foreground">Sign out of TellMeMore</p>
                   <p className="text-[11px] text-muted-foreground">You'll need to sign back in to access your account.</p>
@@ -604,7 +626,73 @@ export default function SettingsPage() {
                   <LogOut style={{ width: 12, height: 12 }} /> Sign Out
                 </Button>
               </div>
+
+              {/* Delete Account */}
+              <div className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-rose-500/[0.05] border border-rose-500/20">
+                <div>
+                  <p className="text-[13px] font-medium text-rose-600 dark:text-rose-400">Delete Account</p>
+                  <p className="text-[11px] text-muted-foreground">Permanently deletes your profile, posts and data. You can sign up again with the same email.</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteAccount(true)}
+                  className="shrink-0 rounded-xl text-[12px] bg-rose-600 hover:bg-rose-700"
+                >
+                  Delete
+                </Button>
+              </div>
             </GlassCard>
+
+            {/* Delete Account Confirmation Modal */}
+            {showDeleteAccount && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+                <div className="w-full max-w-sm rounded-3xl p-6 space-y-4" style={{ background: 'rgba(20,20,30,0.95)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-2xl bg-rose-500/20 flex items-center justify-center shrink-0">
+                      <AlertTriangle style={{ width: 18, height: 18 }} className="text-rose-400" />
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-semibold text-white">Delete Account?</p>
+                      <p className="text-[12px] text-white/50">This cannot be undone</p>
+                    </div>
+                  </div>
+                  <p className="text-[13px] text-white/60 leading-relaxed">
+                    Your profile, posts, comments, and all data will be permanently deleted. You can sign up again immediately with the same email address.
+                  </p>
+                  <label className="flex items-start gap-2.5 cursor-pointer p-3 rounded-2xl" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <input
+                      type="checkbox"
+                      checked={deleteConfirmed}
+                      onChange={e => setDeleteConfirmed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded accent-rose-500 shrink-0"
+                    />
+                    <span className="text-[12px] text-white/70 leading-relaxed">
+                      I understand this will permanently delete my account and all my data
+                    </span>
+                  </label>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setShowDeleteAccount(false); setDeleteConfirmed(false); }}
+                      disabled={deleteAccountLoading}
+                      className="flex-1 rounded-xl text-[12px]"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleDeleteAccount}
+                      disabled={deleteAccountLoading || !deleteConfirmed}
+                      className="flex-1 rounded-xl text-[12px] bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-40"
+                    >
+                      {deleteAccountLoading ? 'Deleting...' : 'Yes, Delete Everything'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

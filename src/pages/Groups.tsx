@@ -103,9 +103,19 @@ export default function Groups() {
 
   useEffect(() => {
     if (!selectedMajorId) { setGroups([]); return; }
-    supabase.from('groups').select('id, name, major_id, last_activity')
-      .eq('major_id', selectedMajorId).order('name')
-      .then(({ data }) => { if (data) setGroups(data); });
+    const fetchGroups = () => {
+      supabase.from('groups').select('id, name, major_id, last_activity')
+        .eq('major_id', selectedMajorId).order('name')
+        .then(({ data }) => { if (data) setGroups(data); });
+    };
+    fetchGroups();
+
+    // Realtime — new groups, deletions, activity updates
+    const channel = supabase.channel(`groups-${selectedMajorId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups', filter: `major_id=eq.${selectedMajorId}` }, fetchGroups)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [selectedMajorId]);
 
   const associateMajor = useCallback(async (majorId: string) => {

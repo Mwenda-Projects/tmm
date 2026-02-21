@@ -542,6 +542,7 @@ export default function Auth() {
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
   const [modalError, setModalError] = useState<{ title: string; description: string } | null>(null);
+  const [termsConsented, setTermsConsented] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -568,6 +569,7 @@ export default function Auth() {
     try {
       if (!isLogin) {
         if (!isUniversityEmail(email)) { setError(DOMAIN_ERROR_MESSAGE); setLoading(false); return; }
+        if (!termsConsented) { setError('Please accept the Terms of Service and Privacy Policy to continue.'); setLoading(false); return; }
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(), password,
           options: { emailRedirectTo: window.location.origin, data: { full_name: fullName.trim() } },
@@ -685,6 +687,23 @@ export default function Auth() {
           <GlassInput id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} icon={Lock} />
           {!isLogin && <p className="text-[11px] text-muted-foreground">Minimum 6 characters</p>}
         </div>
+        {/* Terms consent — only shown on signup */}
+        {!isLogin && (
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={termsConsented}
+              onChange={e => setTermsConsented(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-primary shrink-0"
+            />
+            <span className="text-[12px] text-muted-foreground leading-relaxed">
+              I agree to the{' '}
+              <a href="/terms" target="_blank" className="text-primary hover:underline font-medium">Terms of Service</a>
+              {' '}and{' '}
+              <a href="/privacy" target="_blank" className="text-primary hover:underline font-medium">Privacy Policy</a>
+            </span>
+          </label>
+        )}
         <Button type="submit" disabled={loading}
           className="w-full h-12 rounded-xl text-[14px] font-semibold gap-2 mt-1 shadow-lg shadow-primary/20">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : isLogin ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}

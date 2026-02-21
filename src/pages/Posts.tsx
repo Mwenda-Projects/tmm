@@ -306,22 +306,56 @@ function PostCard({ post, userId, isGuest, onDeleted }: {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleting, setDeleting] = useState(false); // fade-out animation
 
+  const fetchLikeData = useCallback(async () => {
+    const { count } = await supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
+    setLikeCount(count ?? 0);
+    if (userId) {
+      const { data } = await supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle();
+      setLiked(!!data);
+    }
+  }, [post.id, userId]);
+
+  const fetchCommentCount = useCallback(async () => {
+    const { count } = await supabase.from('post_comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
+    setCommentCount(count ?? 0);
+  }, [post.id]);
+
+  const fetchComments = useCallback(async () => {
+    const { data } = await supabase.from('post_comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
+    if (!data) return;
+    const uids = [...new Set(data.map(c => c.user_id))];
+    const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', uids);
+    const pmap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+    setComments(data.map(c => ({ ...c, authorName: pmap.get(c.user_id) || 'Unknown' })));
+    setCommentsFetched(true);
+  }, [post.id]);
+
+  // Initial data fetch
   useEffect(() => {
-    const fetchLikeData = async () => {
-      const { count } = await supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
-      setLikeCount(count ?? 0);
-      if (userId) {
-        const { data } = await supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', userId).maybeSingle();
-        setLiked(!!data);
-      }
-    };
-    const fetchCommentCount = async () => {
-      const { count } = await supabase.from('post_comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
-      setCommentCount(count ?? 0);
-    };
     fetchLikeData();
     fetchCommentCount();
-  }, [post.id, userId]);
+  }, [fetchLikeData, fetchCommentCount]);
+
+  // Realtime subscriptions (declared after fetchComments is defined)
+  useEffect(() => {
+    const likesChannel = supabase.channel(`likes-${post.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes', filter: `post_id=eq.${post.id}` }, () => {
+        fetchLikeData();
+      })
+      .subscribe();
+
+    const commentsChannel = supabase.channel(`comments-count-${post.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` }, () => {
+        fetchCommentCount();
+        if (commentsFetched) fetchComments();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(likesChannel);
+      supabase.removeChannel(commentsChannel);
+    };
+  }, [post.id, fetchLikeData, fetchCommentCount, fetchComments, commentsFetched]);
 
   const handleLike = async () => {
     if (isGuest || likeLoading) return;
@@ -337,16 +371,6 @@ function PostCard({ post, userId, isGuest, onDeleted }: {
     }
     setLikeLoading(false);
   };
-
-  const fetchComments = useCallback(async () => {
-    const { data } = await supabase.from('post_comments').select('*').eq('post_id', post.id).order('created_at', { ascending: true });
-    if (!data) return;
-    const uids = [...new Set(data.map(c => c.user_id))];
-    const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', uids);
-    const pmap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-    setComments(data.map(c => ({ ...c, authorName: pmap.get(c.user_id) || 'Unknown' })));
-    setCommentsFetched(true);
-  }, [post.id]);
 
   const handleToggleComments = async () => {
     if (!showComments && !commentsFetched) await fetchComments();
