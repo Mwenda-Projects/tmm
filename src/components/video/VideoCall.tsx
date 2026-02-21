@@ -36,57 +36,6 @@ function getInitials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
-// ─── Ringing Tone (generated, no external file needed) ────────────────────────
-// Creates a soft double-beep ring pattern using the Web Audio API.
-// Volume is fixed — it will NOT escalate over time.
-// Automatically stops when the component unmounts or call is accepted.
-
-function useRingtone(active: boolean) {
-  const ctxRef = useRef<AudioContext | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const playBeep = useCallback(() => {
-    try {
-      if (!ctxRef.current || ctxRef.current.state === 'closed') {
-        ctxRef.current = new AudioContext();
-      }
-      const ctx = ctxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-
-      // Two short tones — classic phone double-ring feel
-      [0, 0.22].forEach(delay => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 520;  // Hz — soft, not shrill
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-        gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + delay + 0.02); // fixed volume
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + delay + 0.18);
-        osc.start(ctx.currentTime + delay);
-        osc.stop(ctx.currentTime + delay + 0.2);
-      });
-    } catch (_) { /* AudioContext blocked — silently ignore */ }
-  }, []);
-
-  useEffect(() => {
-    if (!active) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
-      return;
-    }
-    playBeep();
-    timerRef.current = setInterval(playBeep, 3500); // ring every 3.5 s
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      // Close the AudioContext so no sound can leak after unmount
-      ctxRef.current?.close().catch(() => {});
-      ctxRef.current = null;
-    };
-  }, [active, playBeep]);
-}
-
 // ─── Control Button ───────────────────────────────────────────────────────────
 
 function CtrlBtn({ onClick, danger, end, children, label }: {
@@ -163,9 +112,7 @@ export function VideoCall({
     requestMedia, localStream,
   } = useWebRTC({ currentUserId, remoteUserId, callSessionId, isCaller });
 
-  // Ring only while on the pre-call screen and call hasn't connected yet
   const isConnected = callStatus === 'accepted';
-  useRingtone(!isConnected && mediaReady && isCaller);
 
   // Attach local stream
   useEffect(() => {
